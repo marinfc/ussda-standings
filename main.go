@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"strconv"
 	"encoding/json"
 	"fmt"
@@ -9,10 +10,8 @@ import (
 	"io"
 	"regexp"
 	"sort"
-	//"time"
 )
 
-// types have to be strings because results contain non integer values
 type game struct {
 	ID			string 		`json:"id"`
 	HomeTeamID 	string 		`json:"homeId"`
@@ -25,15 +24,31 @@ type game struct {
 	AwayClubID 	string 		`json:"awayClub"`
 	HomeDivisionID string	`json:"homeDivision"`
 	AwayDivisionID string	`json:"awayDivision"`
-	//StartDate 	time.Time 	`json:"startDate"`
+	StartDate 	string 		`json:"startDate"`
 	IsPlayed	string		`json:"isPlayed"`
 }
 
-const marinFC = "3139"
-// 4000300 U14
-// 4000301 U12
-// 4000302 U13
+// Sort Interface
+type byStart []game
 
+const startDateFormat = "2006/01/02 15:04:05"
+func (a byStart) Len() int           { return len(a) }
+func (a byStart) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byStart) Less(i, j int) bool { 
+	a1, _ := time.Parse(startDateFormat, a[i].StartDate)
+	a2, _ := time.Parse(startDateFormat, a[j].StartDate)
+    if a1.Sub(a2) > 0 {
+       return true
+	}
+	
+	return false
+}
+
+const ussdaURL = "http://www.ussoccerda.com/sam/standings/regevent/index.php?containerId=MzgzNDMwMA%3D%3D&partialGames=0"
+const marinFC = "3139"
+const marinFCU13 = "4000302"
+const marinFCU12 = "4000301"
+const marinFCU14 = "4000300"
 
 /*
 {"id":"4154357",
@@ -281,12 +296,14 @@ func showTeamStanding(standings map[string]*standing, teamID string) {
 	}
 	fmt.Printf("\n")
 	
-	// TODO: Sort the games by date played
+	// Sort the games by date played
+	sort.Sort(byStart(teamStanding.Games))
+
 	// Show games for the requested team
 	fmt.Printf("%s Games\n", teamStanding.Name)
-	fmt.Printf("%50s vs %50s\tScore\n", "Home", "Away")
+	fmt.Printf("%25s %50s vs %50s\tScore\n", "Date", "Home", "Away")
 	for _, g := range teamStanding.Games {
-		fmt.Printf("%50s vs %50s\t%s - %s\n", g.HomeName, g.AwayName, g.HomeScore, g.AwayScore)
+		fmt.Printf("%25s %50s vs %50s\t%s - %s\n", g.StartDate, g.HomeName, g.AwayName, g.HomeScore, g.AwayScore)
 	}
 	fmt.Printf("\n\n")
 	
@@ -295,7 +312,7 @@ func showTeamStanding(standings map[string]*standing, teamID string) {
 func main() {
 
 	// Make HTTP Request
-	resp, _ := http.Get("http://www.ussoccerda.com/sam/standings/regevent/index.php?containerId=MzgzNDMwMA%3D%3D&partialGames=0")
+	resp, _ := http.Get(ussdaURL)
 
 	// Find the script tag that contains the json code we want to parse
 	scriptCode := getScriptCode(resp.Body)
@@ -310,7 +327,7 @@ func main() {
 
 	// create standings data
 	standings := createStandings(divisions, clubs, games)
-	showTeamStanding(standings, "4000301")
-	showTeamStanding(standings, "4000302")
-	showTeamStanding(standings, "4000300")
+	showTeamStanding(standings, marinFCU12)
+	showTeamStanding(standings, marinFCU13)
+	showTeamStanding(standings, marinFCU14)
 }
