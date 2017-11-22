@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"encoding/json"
 	"fmt"
 	"golang.org/x/net/html"
@@ -87,7 +88,6 @@ type division struct {
 	Name string `json:"name"`
 }
 
-// TODO: Calculate goals for and against
 type standing struct {
 	DivisionID string
 	ClubID string
@@ -97,6 +97,8 @@ type standing struct {
 	Ties int
 	Losses int
 	Points int
+	GoalsFor int
+	GoalsAgainst int
 	Games []game
 }
 
@@ -113,7 +115,6 @@ func (a byPoints) Less(i, j int) bool {
 	
 	return false
 }
-
 
 func getScriptCode(r io.Reader) string {
 	z := html.NewTokenizer(r)
@@ -242,6 +243,14 @@ func createStandings(divisions []division, clubs []club, games []game) map[strin
 			homeStanding.Ties++
 		}
 
+		// Update Goals for and against
+		awayScore, _ := strconv.Atoi(g.AwayScore)
+		homeScore, _ := strconv.Atoi(g.HomeScore)
+		awayStanding.GoalsFor += awayScore
+		awayStanding.GoalsAgainst += homeScore
+		homeStanding.GoalsFor += homeScore
+		homeStanding.GoalsAgainst += awayScore
+
 		// Calculate Points
 		updateStandingPoints(homeStanding)
 		updateStandingPoints(awayStanding)
@@ -266,9 +275,9 @@ func showTeamStanding(standings map[string]*standing, teamID string) {
 	sort.Sort(byPoints(divisionStandings))
 
 	// Show the standings
-	fmt.Printf("%50s\tWins\tLosses\tTies\tPoints\n", "Team")
+	fmt.Printf("%50s\tWins\tLosses\tTies\tPoints\tGF\tGA\tDiff\n", "Team")
 	for _, s := range divisionStandings {
-		fmt.Printf("%50s\t%d\t%d\t%d\t%d\n", s.Name, s.Wins, s.Losses, s.Ties, s.Points)
+		fmt.Printf("%50s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", s.Name, s.Wins, s.Losses, s.Ties, s.Points, s.GoalsFor, s.GoalsAgainst, s.GoalsFor - s.GoalsAgainst)
 	}
 	fmt.Printf("\n")
 	
