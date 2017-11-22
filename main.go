@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"io"
 	"regexp"
+	"sort"
 	//"time"
 )
 
@@ -15,6 +16,8 @@ type game struct {
 	ID			string 		`json:"id"`
 	HomeTeamID 	string 		`json:"homeId"`
 	AwayTeamID 	string 		`json:"awayId"`
+	AwayName    string      `json:"awayName"`
+	HomeName    string      `json:"homeName"`
 	HomeScore 	string 		`json:"homeScore"`
 	AwayScore 	string 		`json:"awayScore"`
 	HomeClubID 	string 		`json:"homeClub"`
@@ -84,16 +87,33 @@ type division struct {
 	Name string `json:"name"`
 }
 
+// TODO: Calculate goals for and against
 type standing struct {
 	DivisionID string
 	ClubID string
 	TeamID string
+	Name string
 	Wins int
 	Ties int
 	Losses int
 	Points int
 	Games []game
 }
+
+// Sort Interface
+type byPoints []standing
+
+func (a byPoints) Len() int           { return len(a) }
+func (a byPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byPoints) Less(i, j int) bool { 
+	// Note: Just compare points. Don't worry about other tie breakers
+    if a[i].Points > a[j].Points {
+       return true
+	}
+	
+	return false
+}
+
 
 func getScriptCode(r io.Reader) string {
 	z := html.NewTokenizer(r)
@@ -178,9 +198,11 @@ func getStanding(standings map[string]*standing, g game, isAway bool) *standing 
 		if isAway {
 			val.ClubID = g.AwayClubID
 			val.DivisionID = g.AwayDivisionID
+			val.Name = g.AwayName
 		} else {
 			val.ClubID = g.HomeClubID
 			val.DivisionID = g.HomeDivisionID
+			val.Name = g.HomeName
 		}
 		standings[teamID] = val
 	}
@@ -229,8 +251,35 @@ func createStandings(divisions []division, clubs []club, games []game) map[strin
 }
 
 func showTeamStanding(standings map[string]*standing, teamID string) {
-	s := standings[teamID]
-	fmt.Printf("Standings: Wins: %d Losses: %d Ties: %d\n", s.Wins, s.Losses, s.Ties)
+	teamStanding := standings[teamID]
+	divisionID := teamStanding.DivisionID
+
+	// Grab all teams in the division
+	var divisionStandings []standing
+	for _, s := range standings {
+		if s.DivisionID == divisionID {
+			divisionStandings = append(divisionStandings, *s)
+		}
+	}
+
+	// Sort by points
+	sort.Sort(byPoints(divisionStandings))
+
+	// Show the standings
+	fmt.Printf("%50s\tWins\tLosses\tTies\tPoints\n", "Team")
+	for _, s := range divisionStandings {
+		fmt.Printf("%50s\t%d\t%d\t%d\t%d\n", s.Name, s.Wins, s.Losses, s.Ties, s.Points)
+	}
+	fmt.Printf("\n")
+	
+	// TODO: Sort the games by date played
+	// Show games for the requested team
+	fmt.Printf("%s Games\n", teamStanding.Name)
+	fmt.Printf("%50s vs %50s\tScore\n", "Home", "Away")
+	for _, g := range teamStanding.Games {
+		fmt.Printf("%50s vs %50s\t%s - %s\n", g.HomeName, g.AwayName, g.HomeScore, g.AwayScore)
+	}
+	fmt.Printf("\n\n")
 	
 }
 
@@ -255,6 +304,4 @@ func main() {
 	showTeamStanding(standings, "4000301")
 	showTeamStanding(standings, "4000302")
 	showTeamStanding(standings, "4000300")
-	
-	fmt.Println("Done")
 }
