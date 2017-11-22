@@ -1,12 +1,23 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"golang.org/x/net/html"
 	"net/http"
 	"io"
 	"regexp"
 )
+
+type club struct {
+	ID int `json:"id"`
+	Name string `json:"name"`
+}
+
+type division struct {
+	ID int `json:"id"`
+	Name string `json:"name"`
+}
 
 func getScriptCode(r io.Reader) string {
 	z := html.NewTokenizer(r)
@@ -42,7 +53,7 @@ func getScriptCode(r io.Reader) string {
 
 func getJSON(script string, tag string) string {
 
-	pattern := tag + "\"\\]=(?P<tag>\\[{.*}\\])"
+	pattern := tag + "\"\\]=(?P<tag>\\[{[^;]*}\\])"
 	scriptTag := regexp.MustCompile(pattern)
 
 	matches := scriptTag.FindStringSubmatch(script)
@@ -58,17 +69,32 @@ func main() {
 	/* Make HTTP Request */
 	resp, _ := http.Get("http://www.ussoccerda.com/sam/standings/regevent/index.php?containerId=MzgzNDMwMA%3D%3D&partialGames=0")
 
+	// Find the script tag that contains the json code we want to parse
 	scriptCode := getScriptCode(resp.Body)
-
-	//gamesJSON :=getJSON(scriptCode, "games")
-	divisionsJSON := getJSON(scriptCode, "divisions")
-	clubsJSON := getJSON(scriptCode, "clubs")
-
 	resp.Body.Close()
+	
+	// Get the JSON data from the script tag and parse it
+	//gamesJSON :=getJSON(scriptCode, "games")
+
+	// division JSON
+	divisionsJSON := getJSON(scriptCode, "divisions")
+	divisions := []division{}
+	if err := json.Unmarshal([]byte(divisionsJSON), &divisions); err != nil {
+		fmt.Println("Error parsing Division JSON")
+		panic(err)
+	}
+	fmt.Printf("Division[0]: %s\nDivision[1]: %s\n", divisions[0].Name, divisions[1].Name)
+
+	// club JSON
+	clubsJSON := getJSON(scriptCode, "clubs")
+	clubs := []club{}
+	if err := json.Unmarshal([]byte(clubsJSON), &clubs); err != nil {
+		fmt.Println("Error parsing Club JSON")
+		panic(err)
+	}
+	fmt.Printf("Club[0]: %s\nClub[1]: %s\n", clubs[0].Name, clubs[1].Name)
 
 	//fmt.Printf("Games: %s\n", gamesJSON)
-	fmt.Printf("Divisions: %s\n", divisionsJSON)
-	fmt.Printf("Clubs: %s\n", clubsJSON)
 
 	fmt.Println("Done")
 }
